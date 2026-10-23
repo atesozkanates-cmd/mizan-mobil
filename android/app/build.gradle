@@ -1,5 +1,7 @@
 apply plugin: 'com.android.application'
 
+def surumKodu = Integer.parseInt(System.getenv("SURUM_KODU") ?: "1")
+
 android {
     namespace = "com.mizanlar.crm"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -8,8 +10,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Sürüm numarası GitHub derleme sırasından gelir (her derleme bir öncekinin üzerine kurulabilsin)
-        versionCode (System.getenv("SURUM_KODU") ?: "1").toInteger()
-        versionName "1.0." + (System.getenv("SURUM_KODU") ?: "1")
+        versionCode surumKodu
+        versionName "1.0." + surumKodu
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
