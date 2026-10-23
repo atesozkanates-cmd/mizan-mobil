@@ -1,0 +1,24 @@
+{
+  "name": "mizan-mobil",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mizan & Partners iç sistemi (crm.mizanlar.com) telefon uygulaması — Capacitor",
+  "scripts": {
+    "esitle": "cap sync"
+  },
+  "dependencies": {
+    "@capacitor-community/file-opener": "8.0.1",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/push-notifications": "8.1.3",
+    "@capacitor/splash-screen": "8.0.2",
+    "@capgo/capacitor-share-target": "8.0.63"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "8.5.3"
+  }
+}

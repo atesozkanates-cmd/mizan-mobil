@@ -1,0 +1,53 @@
+# Mizan telefon uygulamasını (Android) derler: imzalı APK (telefona elle kurulum) ve AAB (Google Play) "Artifacts" olarak çıkar.
+name: derle
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    env:
+      IMZA_VAR: ${{ secrets.IMZA_JKS_B64 != '' && 'evet' || 'hayir' }}
+      FIREBASE_VAR: ${{ secrets.GOOGLE_SERVICES_JSON != '' && 'evet' || 'hayir' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22" }
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "21" }
+      - run: npm ci --no-audit --no-fund
+      - run: npx cap sync android
+      # Firebase (telefon bildirimi): google-services.json gizli değişkenden ya da depodaki dosyadan
+      - name: Firebase dosyasi
+        if: ${{ env.FIREBASE_VAR == 'evet' }}
+        env: { GJ: "${{ secrets.GOOGLE_SERVICES_JSON }}" }
+        run: printf '%s' "$GJ" > android/app/google-services.json
+      - name: Imza anahtari
+        if: ${{ env.IMZA_VAR == 'evet' }}
+        env:
+          B64: ${{ secrets.IMZA_JKS_B64 }}
+          SIFRE: ${{ secrets.IMZA_SIFRESI }}
+        run: |
+          printf '%s' "$B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/imza.jks" || { echo "::error::IMZA_JKS_B64 okunamadi"; exit 1; }
+          keytool -list -keystore "$RUNNER_TEMP/imza.jks" -storepass "$(printf '%s' "$SIFRE" | tr -d ' \r\n\t')" >/dev/null || { echo "::error::Imza anahtari ya da IMZA_SIFRESI hatali"; exit 1; }
+      - name: Derle
+        working-directory: android
+        env:
+          SURUM_KODU: ${{ github.run_number }}
+          IMZA_SIFRESI_HAM: ${{ secrets.IMZA_SIFRESI }}
+          IMZA_ADI: mizan
+        run: |
+          chmod +x gradlew
+          if [ "$IMZA_VAR" = "evet" ]; then export IMZA_DOSYASI="$RUNNER_TEMP/imza.jks" IMZA_SIFRESI="$(printf '%s' "$IMZA_SIFRESI_HAM" | tr -d ' \r\n\t')"; fi
+          set -o pipefail
+          if [ "$IMZA_VAR" = "evet" ]; then ./gradlew assembleRelease bundleRelease --no-daemon 2>&1 | tee ../derleme.log; else ./gradlew assembleDebug --no-daemon 2>&1 | tee ../derleme.log; fi
+      - name: Hata ozeti
+        if: failure()
+        run: grep -n -B2 -A12 "What went wrong" derleme.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mizan-android
+          path: |
+            android/app/build/outputs/apk/**/*.apk
+            android/app/build/outputs/bundle/**/*.aab
