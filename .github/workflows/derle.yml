@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   android:
     runs-on: ubuntu-24.04
@@ -51,3 +53,11 @@ jobs:
           path: |
             android/app/build/outputs/apk/**/*.apk
             android/app/build/outputs/bundle/**/*.aab
+      # Personelin indireceği sabit adres: .../releases/download/son/mizan.apk (crm.mizanlar.com/uygulama buraya yönlendirir)
+      - name: Indirme adresine koy
+        if: ${{ env.IMZA_VAR == 'evet' && github.ref == 'refs/heads/main' }}
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk mizan.apk
+          gh release delete son -y --cleanup-tag || true
+          gh release create son mizan.apk --title "Mizan uygulaması (Android) 1.0.${{ github.run_number }}" --notes "Telefona kurulum: mizan.apk dosyasını indirip açın." --latest
