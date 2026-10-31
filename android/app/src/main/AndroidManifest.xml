@@ -65,7 +65,4 @@
     <!-- Belge fotoğrafı çekmek için kamera; bildirimler için Android 13+ izni -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Sesle yazma / sesli komut için mikrofon (yalnızca kullanıcı mikrofon düğmesine basınca sorulur) -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>
