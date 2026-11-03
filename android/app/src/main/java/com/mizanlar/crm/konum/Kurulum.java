@@ -4,23 +4,18 @@ import com.mizanlar.crm.R;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.PowerManager;
-import android.provider.Settings;
 import android.text.InputType;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.util.ArrayList;
 
 /**
- * Elle kurulum ekranı (MDM'siz / B yolu).
+ * Şirket telefonu konum kurulumu (CRM'deki Şirket Telefonları sayfasından açılır).
  * Yetkili kişi cihaz anahtarını CRM'den alıp girer; konum ve bildirim izinleri ile pil kısıtlaması burada verilir.
  * Yönetilen (MDM) cihazlarda bu ekrana gerek yoktur; o zaman yapılandırma MDM'den gelir.
  */
@@ -45,10 +40,10 @@ public class Kurulum extends Activity {
 
         TextView bilgi = new TextView(this);
         bilgi.setText("Bu ekran yalnızca Mizan & Partners'a ait, personele zimmetli şirket telefonları içindir.\n\n"
-                + "Kurulum yapılırsa Mizan CRM, uygulama kapalıyken de (arka planda) bu telefonun konumunu toplar: "
-                + "yalnızca mesai saatlerinde (hafta içi 09:00–18:30, resmî tatiller hariç) yaklaşık 20 dakikada bir. "
-                + "Konum bilgisi saha çalışmasının takibi için şirket sunucusuna gönderilir, yalnızca ortaklar ve yetkili kişiler görür ve 90 gün sonra silinir. "
-                + "Konum alınırken bildirim çubuğunda bilgi bildirimi görünür.\n\n"
+                + "Kurulum yapılırsa Mizan CRM, yalnızca uygulama açıkken ve kullanılırken bu telefonun konumunu alır: "
+                + "mesai saatlerinde (hafta içi 09:00–18:30, resmî tatiller hariç) en çok yaklaşık 20 dakikada bir. "
+                + "Uygulama kapalıyken veya arka plandayken konum alınmaz. "
+                + "Konum bilgisi saha çalışmasının takibi için şirket sunucusuna gönderilir, yalnızca ortaklar ve yetkili kişiler görür ve 90 gün sonra silinir.\n\n"
                 + "Kişisel telefonlarda bu kurulumu yapmayın. Devam ederseniz konum izni istenecektir.");
         bilgi.setPadding(0, 0, 0, p);
         k.addView(bilgi);
@@ -75,7 +70,7 @@ public class Kurulum extends Activity {
         Button kaldir = new Button(this);
         kaldir.setText("Bu telefonda konumu kapat (kurulumu kaldır)");
         kaldir.setOnClickListener(v -> {
-            KonumServisi.durdur(getApplicationContext());
+            Ayar.tercih(getApplicationContext()).edit().remove("cihazAnahtari").remove("bekleyen").putString("sonDurum", "").apply();
             anahtarAlan.setText("");
             denemeSonucu = "Konum kurulumu kaldırıldı; bu telefondan konum gönderilmez.";
             durumGoster();
@@ -111,64 +106,37 @@ public class Kurulum extends Activity {
         }).start();
     }
 
-    /** Konum (ön plan) ve bildirim izinlerini ister; sonra arka plan konumuna geçer. */
+    /** Yalnızca uygulama kullanılırken konum izni istenir (arka plan konumu istenmez). */
     private void izinIste() {
-        ArrayList<String> iste = new ArrayList<>();
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-            iste.add(Manifest.permission.ACCESS_FINE_LOCATION);
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-            iste.add(Manifest.permission.POST_NOTIFICATIONS);
-        if (!iste.isEmpty()) { requestPermissions(iste.toArray(new String[0]), 1); return; }
-        arkaPlanKonum();
-    }
-
-    @Override public void onRequestPermissionsResult(int kod, String[] izinler, int[] sonuc) {
-        if (kod == 1) arkaPlanKonum();
-        else if (kod == 2) pilVeBaslat();
-    }
-
-    /** Android 10+ arka plan konumu ayrı istenir ("Her zaman izin ver"). */
-    private void arkaPlanKonum() {
-        if (Build.VERSION.SDK_INT >= 29
-                && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                && checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Konumu 'Her zaman izin ver' seçin", Toast.LENGTH_LONG).show();
-            requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 2);
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 1);
             return;
         }
-        pilVeBaslat();
+        bitti();
     }
 
-    /** Pil kısıtlaması muafiyeti istenir ve hizmet başlatılır. */
-    private void pilVeBaslat() {
-        PowerManager pm = getSystemService(PowerManager.class);
-        if (Build.VERSION.SDK_INT >= 23 && pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-            try {
-                startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
-            } catch (Exception ignored) { }
-        }
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            KonumServisi.baslat(this);
-            Toast.makeText(this, "Kurulum tamam, konum hizmeti başladı", Toast.LENGTH_SHORT).show();
+    @Override public void onRequestPermissionsResult(int kod, String[] izinler, int[] sonuc) { if (kod == 1) bitti(); }
+
+    private void bitti() {
+        boolean izin = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (izin) {
+            Ayar.tercih(this).edit().putLong("sonKonum", 0).apply();
+            Zamanlayici.belkiAl(this);
+            Toast.makeText(this, "Kurulum tamam: uygulama kullanılırken mesai saatinde konum alınacak", Toast.LENGTH_LONG).show();
         } else {
-            Toast.makeText(this, "Konum izni verilmeden hizmet başlamaz", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Konum izni verilmeden konum alınamaz", Toast.LENGTH_LONG).show();
         }
         durumGoster();
     }
 
     private void durumGoster() {
-        boolean konum = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        boolean arka = Build.VERSION.SDK_INT < 29 || checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        boolean bildirim = Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
-        PowerManager pm = getSystemService(PowerManager.class);
-        boolean pil = Build.VERSION.SDK_INT < 23 || (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName()));
+        boolean konum = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
         boolean anahtar = !Ayar.tercih(this).getString("cihazAnahtari", "").isEmpty();
         durum.setText(
                 im(anahtar) + " Cihaz anahtarı\n" +
-                im(konum) + " Konum izni\n" +
-                im(arka) + " Her zaman konum\n" +
-                im(bildirim) + " Bildirim izni\n" +
-                im(pil) + " Pil kısıtlaması kapalı" +
+                im(konum) + " Konum izni (uygulama kullanılırken)" +
                 (denemeSonucu.isEmpty() ? "" : "\n\n" + denemeSonucu) +
                 (Ayar.durum(this).isEmpty() ? "" : "\nSon durum: " + Ayar.durum(this)));
     }

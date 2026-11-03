@@ -2,16 +2,12 @@ package com.mizanlar.crm.konum;
 
 import com.mizanlar.crm.R;
 
-import android.app.NotificationManager;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.CancellationSignal;
-import android.os.PowerManager;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -21,21 +17,29 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.json.JSONObject;
 
-/** Her aralıkta tetiklenir: mesaideyse konumu alıp gönderir, sonra bir sonraki zamanı kurar. */
+/**
+ * Uygulama kullanılırken (ekran açıkken) konum alır: yalnızca bu telefonda şirket konum kurulumu yapılmışsa,
+ * mesai saatindeyse, konum izni verilmişse ve son konumdan bu yana aralık (varsayılan 20 dk) geçtiyse.
+ * Uygulama kapalıyken / arka plandayken hiç konum alınmaz.
+ */
 @android.annotation.TargetApi(26)
-public class Zamanlayici extends BroadcastReceiver {
-    @Override public void onReceive(Context context, Intent intent) {
+public final class Zamanlayici {
+    private Zamanlayici() {}
+    private static volatile boolean calisiyor = false;
+
+    public static void belkiAl(Context context) {
         final Context c = context.getApplicationContext();
-        final PendingResult sonuc = goAsync();
+        if (calisiyor || Build.VERSION.SDK_INT < 26 || Ayar.anahtar(c).isEmpty()) return;
+        if (c.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                && c.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        calisiyor = true;
         new Thread(() -> {
-            PowerManager.WakeLock kilit = c.getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "mizan:konum");
-            kilit.acquire(90_000);
             try {
                 long simdi = System.currentTimeMillis();
                 if (simdi - Ayar.tercih(c).getLong("ayarZamani", 0) > 12 * 3600_000L) Gonderici.ayarYenile(c);
                 long son = Ayar.tercih(c).getLong("sonKonum", 0);
                 long aralik = Ayar.aralikDk(c) * 60_000L;
-                if (Ayar.mesaide(c) && !Ayar.anahtar(c).isEmpty() && simdi - son >= aralik - 90_000) {
+                if (Ayar.mesaide(c) && simdi - son >= aralik - 90_000) {
                     Location l = konumAl(c);
                     if (l != null) {
                         Ayar.tercih(c).edit().putLong("sonKonum", simdi).apply();
@@ -51,14 +55,13 @@ public class Zamanlayici extends BroadcastReceiver {
                         Ayar.durumYaz(c, neden(c));
                         Gonderici.ekleVeGonder(c, null);
                     }
+                } else {
+                    // internet yokken bekletilenler varsa göndermeyi dener
+                    Gonderici.ekleVeGonder(c, null);
                 }
-                // Bildirimdeki "mesai / mesai dışı" yazısı güncellenir
-                c.getSystemService(NotificationManager.class).notify(1, KonumServisi.bildirim(c));
             } catch (Exception ignored) {
             } finally {
-                if (!Ayar.anahtar(c).isEmpty()) KonumServisi.sonrakiniKur(c, Ayar.mesaide(c) ? Ayar.aralikDk(c) * 60_000L : 15 * 60_000L);
-                if (kilit.isHeld()) kilit.release();
-                sonuc.finish();
+                calisiyor = false;
             }
         }).start();
     }
@@ -132,9 +135,8 @@ public class Zamanlayici extends BroadcastReceiver {
         LocationManager lm = c.getSystemService(LocationManager.class);
         boolean acik = Build.VERSION.SDK_INT >= 28 ? lm.isLocationEnabled() : (lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER));
         if (!acik) return "Konum alınamadı (" + Ayar.saat() + "): telefonun konumu kapalı. Üst menüden Konum'u açın.";
-        if (c.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                || (Build.VERSION.SDK_INT >= 29 && c.checkSelfPermission(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED))
-            return "Konum alınamadı (" + Ayar.saat() + "): konum izni \"Her zaman izin ver\" değil.";
+        if (c.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            return "Konum alınamadı (" + Ayar.saat() + "): konum izni verilmemiş.";
         return "Konum alınamadı (" + Ayar.saat() + "): sinyal bulunamadı; bir sonraki denemede yeniden alınacak.";
     }
 }
