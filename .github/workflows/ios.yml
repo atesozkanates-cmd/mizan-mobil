@@ -1,0 +1,79 @@
+# Mizan iPhone uygulamasını Mac üzerinde derler.
+# - Apple anahtarları (gizli değişkenler) yoksa: imzasız deneme derlemesi (kodun derlendiğini gösterir).
+# - Anahtarlar varsa: imzalı derleme + App Store Connect'e (TestFlight) otomatik yükleme.
+# Gerekli gizli değişkenler (GitHub > Settings > Secrets > Actions): APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8
+# İsteğe bağlı: GOOGLE_SERVICE_INFO_PLIST (Firebase iOS dosyasının içeriği; telefon bildirimleri için)
+name: ios
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      IMZA_VAR: ${{ secrets.ASC_KEY_P8 != '' && secrets.APPLE_TEAM_ID != '' && 'evet' || 'hayir' }}
+      FIREBASE_VAR: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST != '' && 'evet' || 'hayir' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22" }
+      - name: En yeni Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)
+          echo "Xcode: $X"; sudo xcode-select -s "$X"; xcodebuild -version
+      - run: npm ci --no-audit --no-fund
+      - run: npx cap sync ios
+      - name: Firebase dosyasi
+        if: ${{ env.FIREBASE_VAR == 'evet' }}
+        env: { GP: "${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}" }
+        run: printf '%s' "$GP" > ios/App/App/GoogleService-Info.plist
+      - name: Imzasiz deneme derlemesi
+        if: ${{ env.IMZA_VAR != 'evet' }}
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee ../../derleme.log | grep -E "error:|warning: .*Mizan|BUILD" || true
+          grep -q "BUILD SUCCEEDED" ../../derleme.log
+      - name: Imzali derleme ve TestFlight'a yukleme
+        if: ${{ env.IMZA_VAR == 'evet' }}
+        working-directory: ios/App
+        env:
+          TAKIM: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+          SURUM: ${{ github.run_number }}
+        run: |
+          set -o pipefail
+          ANAHTAR="$RUNNER_TEMP/AuthKey.p8"; printf '%s' "$P8" > "$ANAHTAR"
+          YETKI=(-allowProvisioningUpdates -authenticationKeyPath "$ANAHTAR" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Mizan.xcarchive" "${YETKI[@]}" \
+            DEVELOPMENT_TEAM="$TAKIM" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="$SURUM" MARKETING_VERSION="1.0.$SURUM" \
+            archive 2>&1 | tee ../../derleme.log | grep -E "error:|ARCHIVE" || true
+          grep -q "ARCHIVE SUCCEEDED" ../../derleme.log
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TAKIM</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Mizan.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/cikti" "${YETKI[@]}" 2>&1 | tee -a ../../derleme.log | tail -20
+          grep -q "EXPORT SUCCEEDED\|Upload succeeded\|Uploaded" ../../derleme.log
+      - name: Hata ozeti
+        if: failure()
+        run: grep -n "error:" derleme.log | head -30 | while IFS= read -r l; do echo "::error::$l"; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-derleme-kaydi
+          path: derleme.log
