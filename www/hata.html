@@ -1,5 +1,22 @@
 <!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mizan</title></head>
 <body style="margin:0;background:#0f172a;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;padding:24px">
 <div><div style="font-size:20px;font-weight:700;margin-bottom:8px">Sisteme ulaşılamadı</div>
-<div style="opacity:.8;margin-bottom:20px">İnternet bağlantınızı kontrol edin.</div>
-<button onclick="location.href='https://crm.mizanlar.com'" style="background:#E01838;color:#fff;border:0;border-radius:12px;padding:12px 24px;font-size:16px">Tekrar dene</button></div></body></html>
+<div style="opacity:.8;margin-bottom:6px">İnternet bağlantınızı kontrol edin. Sistem kısa süreli güncelleniyor da olabilir.</div>
+<div id="durum" style="opacity:.6;font-size:14px;margin-bottom:20px">Kendiliğinden yeniden bağlanılacak…</div>
+<button onclick="git()" style="background:#E01838;color:#fff;border:0;border-radius:12px;padding:12px 24px;font-size:16px">Tekrar dene</button></div>
+<script>
+// Sunucuya kısa aralıklarla ulaşmayı dener; ulaşınca uygulamayı kendiliğinden açar (kullanıcının düğmeye basması gerekmez).
+var ADRES = "https://crm.mizanlar.com", deneme = 0;
+function git() { location.href = ADRES; }
+function bak() {
+  deneme++;
+  document.getElementById("durum").textContent = "Yeniden bağlanılıyor… (" + deneme + ". deneme)";
+  var bitti = false;
+  var zaman = setTimeout(function () { if (!bitti) { bitti = true; sonraki(); } }, 8000);
+  fetch(ADRES + "/giris?b=" + Date.now(), { mode: "no-cors", cache: "no-store" })
+    .then(function () { if (!bitti) { bitti = true; clearTimeout(zaman); git(); } })
+    .catch(function () { if (!bitti) { bitti = true; clearTimeout(zaman); sonraki(); } });
+}
+function sonraki() { setTimeout(bak, deneme < 6 ? 5000 : 15000); }
+setTimeout(bak, 3000);
+</script></body></html>
