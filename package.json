@@ -2,7 +2,7 @@
   "name": "mizan-mobil",
   "version": "1.0.0",
   "private": true,
-  "description": "Mizan & Partners iç sistemi (crm.mizanlar.com) telefon uygulaması — Capacitor",
+  "description": "Mizan & Partners iç sistemi (crm.mizan.co) telefon uygulaması — Capacitor",
   "scripts": {
     "esitle": "cap sync"
   },

@@ -3,17 +3,34 @@
   "appName": "Mizan",
   "webDir": "www",
   "server": {
-    "url": "https://crm.mizanlar.com",
+    "url": "https://crm.mizan.co",
     "cleartext": false,
-    "allowNavigation": ["crm.mizanlar.com"],
+    "allowNavigation": [
+      "crm.mizan.co",
+      "crm.mizanlar.com"
+    ],
     "errorPath": "hata.html"
   },
   "appendUserAgent": "MizanApp/1",
   "backgroundColor": "#0f172a",
-  "android": { "allowMixedContent": false },
+  "android": {
+    "allowMixedContent": false
+  },
   "plugins": {
-    "SplashScreen": { "launchShowDuration": 800, "backgroundColor": "#0f172a", "showSpinner": false },
-    "PushNotifications": { "presentationOptions": ["badge", "sound", "alert"] },
-    "CapacitorShareTarget": { "appGroupId": "group.com.mizanlar.crm" }
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#0f172a",
+      "showSpinner": false
+    },
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    },
+    "CapacitorShareTarget": {
+      "appGroupId": "group.com.mizanlar.crm"
+    }
   }
 }

@@ -51,7 +51,7 @@ public class Kurulum extends Activity {
         sunucuAlan = new EditText(this);
         sunucuAlan.setHint("Sunucu adresi");
         sunucuAlan.setInputType(InputType.TYPE_TEXT_VARIATION_URI);
-        sunucuAlan.setText(Ayar.tercih(this).getString("sunucu", "https://crm.mizanlar.com"));
+        sunucuAlan.setText(Ayar.tercih(this).getString("sunucu", "https://crm.mizan.co").replace("crm.mizanlar.com", "crm.mizan.co"));
         k.addView(sunucuAlan);
 
         anahtarAlan = new EditText(this);

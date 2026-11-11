@@ -26,7 +26,9 @@ final class Ayar {
     static String sunucu(Context c) {
         Bundle b = ((RestrictionsManager) c.getSystemService(Context.RESTRICTIONS_SERVICE)).getApplicationRestrictions();
         String s = b.getString("sunucu", "");
-        if (s == null || s.isEmpty()) s = tercih(c).getString("sunucu", "https://crm.mizanlar.com");
+        if (s == null || s.isEmpty()) s = tercih(c).getString("sunucu", "https://crm.mizan.co");
+        // 11.11.2026 alan adı değişti: eski kurulumlarda kayıtlı eski adres yenisine çevrilir
+        s = s.replace("crm.mizanlar.com", "crm.mizan.co");
         return s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
     }
 
